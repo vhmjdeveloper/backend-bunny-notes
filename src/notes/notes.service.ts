@@ -3,11 +3,17 @@ import { SupabaseProvider } from '../supabase/supabase.provider';
 import { WrapperResponse } from '../utils/WrapperResponse';
 import { Notification } from '../utils/Notification';
 import { CreateNoteRequest } from './dto/CreateNoteRequest';
+import { ImagesService } from '../images/images.service';
 
 @Injectable()
 export class NotesService {
-  constructor(private readonly supabaseProvider: SupabaseProvider) {}
+  constructor(
+    private readonly supabaseProvider: SupabaseProvider,
+    private readonly imageService: ImagesService,
+  ) {}
+
   private static readonly TABLE_NOTES = 'notes';
+  private static readonly TABLE_IMAGES: string = 'images';
 
   async listNotes() {
     const supabase = this.supabaseProvider.getClient();
@@ -27,6 +33,7 @@ export class NotesService {
     });
     return response;
   }
+
   async getNoteContent(noteId: string) {
     const supabase = this.supabaseProvider.getClient();
     const { data, error } = await supabase
@@ -40,10 +47,33 @@ export class NotesService {
         Notification.error('Bad Request', error.code, error.message, 'ERROR'),
       ]);
     }
+    // get images urls
+    const { data: images, error: errorImages } = await supabase
+      .from(NotesService.TABLE_IMAGES)
+      .select('path')
+      .eq('note', noteId);
+    if (errorImages) {
+      console.log('Error al obtener las imágenes de la nota:', errorImages);
+      return WrapperResponse.of(null, [
+        Notification.error(
+          'unsuccess',
+          errorImages.code,
+          errorImages.message,
+          'ERROR',
+        ),
+      ]);
+    }
+    const imagesUrls = [];
+    for (const image of images) {
+      const url = await this.imageService.getSignedUrl(image.path);
+      imagesUrls.push(url);
+    }
+    console.log('image:', imagesUrls);
     return {
       id: data.id,
       title: data.title,
       content: data.content,
+      images: imagesUrls,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
@@ -119,5 +149,30 @@ export class NotesService {
       ]);
     }
     return data;
+  }
+
+  async uploadNoteImage(noteId: string, file: Express.Multer.File) {
+    const supabase = this.supabaseProvider.getClient();
+    const path = `${noteId}/${Date.now()}-${file.originalname}`;
+    await this.imageService.uploadImage(file, path);
+    // save image path in database
+    const { error } = await supabase
+      .from(NotesService.TABLE_IMAGES)
+      .insert([
+        {
+          note: noteId,
+          path: path,
+          name: file.originalname,
+        },
+      ])
+      .select('*');
+    if (error) {
+      console.log('Error al subir la imagen:', error);
+      return WrapperResponse.of(null, [
+        Notification.error('unsuccess', error.code, error.message, 'ERROR'),
+      ]);
+    }
+    // Get url of image
+    return {url: await this.imageService.getSignedUrl(path)};
   }
 }

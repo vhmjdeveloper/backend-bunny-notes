@@ -5,11 +5,12 @@ import {
   Get,
   Param,
   Patch,
-  Post,
-} from '@nestjs/common';
+  Post, UploadedFile, UseInterceptors
+} from "@nestjs/common";
 import { NotesService } from './notes.service';
 
 import { CreateNoteRequest } from './dto/CreateNoteRequest';
+import { FileInterceptor } from "@nestjs/platform-express";
 
 @Controller('/v1/pages')
 export class NotesController {
@@ -39,5 +40,13 @@ export class NotesController {
   @Delete(':id')
   async deleteNote(@Param('id') noteId: string) {
     return await this.notesService.deleteNote(noteId);
+  }
+  @Post(':id/images')
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadImage(
+    @Param('id') noteId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return await this.notesService.uploadNoteImage(noteId, file);
   }
 }

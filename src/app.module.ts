@@ -3,9 +3,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { NotesModule } from './notes/notes.module';
 import { SupabaseModule } from './supabase/supabase.module';
+import { ImagesModule } from './images/images.module';
 
 @Module({
-  imports: [NotesModule, SupabaseModule],
+  imports: [NotesModule, SupabaseModule, ImagesModule],
   controllers: [AppController],
   providers: [AppService],
 })
